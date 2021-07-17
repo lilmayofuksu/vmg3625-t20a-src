@@ -1,0 +1,16 @@
+Index: linux-2.6.36/net/ipv4/inetpeer.c
+===================================================================
+--- linux-2.6.36.orig/net/ipv4/inetpeer.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/net/ipv4/inetpeer.c	2017-06-20 19:06:12.844077900 +0800
+@@ -392,6 +392,11 @@
+ 			return -1;
+ 		}
+ 
++		if(((&p->unused)->prev == NULL) || ((&p->unused)->next == NULL)){
++            printk("Abnormal inet_peer address %p\n", p);
++            INIT_LIST_HEAD(&unused_peers.list);
++        }
++        else
+ 		list_del_init(&p->unused);
+ 
+ 		/* Grab an extra reference to prevent node disappearing

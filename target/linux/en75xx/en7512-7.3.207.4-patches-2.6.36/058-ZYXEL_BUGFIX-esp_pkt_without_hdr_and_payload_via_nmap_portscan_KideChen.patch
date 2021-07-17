@@ -1,0 +1,31 @@
+Index: linux-2.6.36/net/netfilter/nf_conntrack_proto_esp.c
+===================================================================
+--- linux-2.6.36.orig/net/netfilter/nf_conntrack_proto_esp.c	2017-09-15 15:27:32.589028721 +0800
++++ linux-2.6.36/net/netfilter/nf_conntrack_proto_esp.c	2017-09-15 15:39:37.371219949 +0800
+@@ -319,6 +319,13 @@
+    struct iphdr *iph = ip_hdr(skb);
+ 
+    esphdr = skb_header_pointer(skb, dataoff, sizeof(_esphdr), &_esphdr);
++#if 1 /*+++ Kide@zyxel: Fix code trace as receiving esp-pkt without esp hdr/payload,
++	* the case could happen via 'nmap -sO -p 50 10.10.100.172' port scan utility.
++	*/
++   if (esphdr == NULL)
++      return -NF_ACCEPT;
++#endif
++
+ 
+    pr_debug("(0x%x) %pI4 <-> %pI4 status %s info %d %s\n",
+ 	  esphdr->spi, &iph->saddr, &iph->daddr, (ct->status & IPS_SEEN_REPLY) ? "SEEN" : "NOT_SEEN",
+@@ -353,6 +360,12 @@
+    ct->proto.esp.timeout = esp_timeouts[ESP_CT_UNREPLIED];
+ 
+    esphdr = skb_header_pointer(skb, dataoff, sizeof(_esphdr), &_esphdr);
++#if 1 /*+++ Kide@zyxel: Fix code trace as receiving esp-pkt without esp hdr/payload,
++	* the case could happen via 'nmap -sO -p 50 10.10.100.172' port scan utility.
++	*/
++   if (esphdr == NULL)
++      return false;
++#endif
+ 
+    pr_debug("NEW SPI(0x%x) %pI4 <-> %pI4 ct(%p)\n",
+      esphdr->spi, &iph->saddr, &iph->daddr, ct);

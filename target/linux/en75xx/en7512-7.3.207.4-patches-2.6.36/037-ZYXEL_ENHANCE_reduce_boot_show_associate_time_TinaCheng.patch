@@ -1,0 +1,16 @@
+Index: linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c
+===================================================================
+--- linux-2.6.36.orig/drivers/mtd/chips/spi_nand_flash.c	2016-12-15 14:41:42.629217869 +0800
++++ linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c	2016-12-15 16:34:00.813450471 +0800
+@@ -3180,7 +3180,11 @@
+ 	
+ 	/* 1. set SFC Clock to 25MHZ */
+ 	val = VPint(_SPI_FREQUENCY_ADJUST_REG);
++#if 1 //Zyxel,remind #28736
++	val |= 0x301;
++#else
+ 	val |= 0xa01;
++#endif
+ 	VPint(_SPI_FREQUENCY_ADJUST_REG) = val;
+ 	
+ 	/* 2. Enable Manual Mode */

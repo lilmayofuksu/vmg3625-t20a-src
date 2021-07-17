@@ -1,0 +1,22 @@
+Index: linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c
+===================================================================
+--- linux-2.6.36.orig/drivers/mtd/chips/spi_nand_flash.c	2018-01-19 08:52:28.742591000 +0800
++++ linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c	2018-01-19 09:15:44.393730820 +0800
+@@ -2016,7 +2016,7 @@
+ 			if( rtn_status != SPI_NAND_FLASH_RTN_NO_ERROR )
+ 			{
+ #if	defined(TCSUPPORT_NAND_BMT) && !defined(LZMA_IMG)
+-					if (update_bmt(addr,UPDATE_ERASE_FAIL, NULL, NULL))
++					if (update_bmt((block_index * BLOCK_SIZE),UPDATE_ERASE_FAIL, NULL, NULL))
+ 					{
+ 						_SPI_NAND_PRINTF("Erase fail at block: %d, update BMT success\n", addr/(_current_flash_info_t.erase_size));
+ 						rtn_status = SPI_NAND_FLASH_RTN_NO_ERROR;
+@@ -3045,7 +3045,7 @@
+ 	 ptr_dev_info_t  = _SPI_NAND_GET_DEVICE_INFO_PTR;	
+ 
+ 	 /* Caculate page number */
+-	 page_number = (offset / (ptr_dev_info_t->page_size));		 
++	 page_number = (((offset / BLOCK_SIZE) * BLOCK_SIZE) / PAGE_SIZE);		 
+ 
+ 
+ 	memset(buf, 0xFF, 8);

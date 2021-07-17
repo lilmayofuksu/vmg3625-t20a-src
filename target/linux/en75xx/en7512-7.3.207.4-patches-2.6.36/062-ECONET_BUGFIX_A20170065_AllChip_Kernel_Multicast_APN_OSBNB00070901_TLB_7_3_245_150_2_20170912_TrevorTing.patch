@@ -1,0 +1,227 @@
+Index: linux-2.6.36/net/bridge/br_multicast.c
+===================================================================
+--- linux-2.6.36.orig/net/bridge/br_multicast.c	2017-10-02 14:05:32.613108000 +0800
++++ linux-2.6.36/net/bridge/br_multicast.c	2017-10-02 13:20:32.734143000 +0800
+@@ -217,7 +217,7 @@
+ 	memset(buf, 0, maxnum*sizeof(struct __mc_fdb_entry));
+ 	
+ 	rcu_read_lock();
+-	spin_lock(&br->multicast_lock);
++	spin_lock_bh(&br->multicast_lock);
+ 	for (i = 0; i < mdb->max; i++) {
+ 		hlist_for_each_entry_rcu(f, h, &mdb->mhash[i], hlist[mdb->ver]) {
+ 			if (num >= maxnum)
+@@ -259,7 +259,7 @@
+ 	}
+ 
+  out:
+- 	spin_unlock(&br->multicast_lock);
++ 	spin_unlock_bh(&br->multicast_lock);
+ 	rcu_read_unlock();
+ 	return num;
+ }
+@@ -405,6 +405,7 @@
+ 	struct net_bridge *br = mp->br;
+ 	struct net_bridge_mdb_htable *mdb;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) || timer_pending(&mp->timer))
+ 		goto out;
+@@ -512,6 +513,7 @@
+ 	struct net_bridge_port_group *pg;
+ 		struct hlist_node *p, *n;
+ 
++                    /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 		spin_lock(&br->multicast_lock);
+ 		hlist_for_each_entry_safe(pg, p, n, &port->mglist, mglist)
+ #if 1//ZYXEL
+@@ -574,6 +576,7 @@
+ 	struct net_bridge_port_group *pg = (void *)data;
+ 	struct net_bridge *br = pg->port->br;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) || timer_pending(&pg->timer) ||
+ 	    hlist_unhashed(&pg->mglist))
+@@ -870,6 +873,7 @@
+ 	struct net_bridge_mdb_entry *mp = (void *)data;
+ 	struct net_bridge *br = mp->br;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) || hlist_unhashed(&mp->mglist) ||
+ 	    mp->queries_sent >= br->multicast_last_member_count)
+@@ -915,6 +919,7 @@
+ 	struct net_bridge_port *port = pg->port;
+ 	struct net_bridge *br = port->br;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) || hlist_unhashed(&pg->mglist) ||
+ 	    pg->queries_sent >= br->multicast_last_member_count)
+@@ -1021,6 +1026,8 @@
+ 	if(unlikely(IS_ERR(mp)||!mp)){
+ 		return NULL;
+ 	}
++    
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	pg = mp->ports;
+ 	while(pg){
+@@ -1131,6 +1138,7 @@
+ 	char mac_addr[20];
+ #endif
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) ||
+ 	    (port && port->state == BR_STATE_DISABLED))
+@@ -1268,6 +1276,7 @@
+ 					 struct net_bridge_port_group *pg)
+ {
+ 		if(br->quick_leave){
++                            /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 			spin_lock(&br->multicast_lock);
+ #if 1//ZYXEL	
+ 			br_multicast_del_pg(br, pg, port, 0);
+@@ -1316,6 +1325,7 @@
+ 					 struct net_bridge_port_group *pg)
+ {
+ 		if(br->quick_leave){
++                            /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 			spin_lock(&br->multicast_lock);
+ #if 1//ZYXEL	
+ 			br_multicast_del_pg(br, pg, port, 0);
+@@ -1336,6 +1346,7 @@
+ 	struct net_bridge_port *port = (void *)data;
+ 	struct net_bridge *br = port->br;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (port->multicast_router != 1 ||
+ 	    timer_pending(&port->multicast_router_timer) ||
+@@ -1367,6 +1378,7 @@
+ {
+ 	struct net_bridge *br = (void *)data;
+ 	
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if(!netif_running(br->dev) || br->multicast_disabled)
+ 		goto out;
+@@ -1457,6 +1469,7 @@
+ 	struct net_bridge_port *port = (void *)data;
+ 	struct net_bridge *br = port->br;
+ 
++        /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (port->state == BR_STATE_DISABLED ||
+ 	    port->state == BR_STATE_BLOCKING)
+@@ -1502,6 +1515,7 @@
+ {
+ 	struct net_bridge *br = port->br;
+ 
++        /*can not modify spin_lock to spin_lock_bh because of this function is called by a function already using spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (br->multicast_disabled || !netif_running(br->dev))
+ 		goto out;
+@@ -1518,6 +1532,7 @@
+ 	struct net_bridge_port_group *pg;
+ 	struct hlist_node *p, *n;
+ 
++        /*can not modify spin_lock to spin_lock_bh because of this function is called by a function already using spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	hlist_for_each_entry_safe(pg, p, n, &port->mglist, mglist)
+ #if 1//ZYXEL
+@@ -1600,6 +1615,7 @@
+ 				port->src_entry.src.s_addr = grec->grec_src[num_src];
+ 				pg =br_ip4_multicast_get_port_group(br, port, group, type==IGMPV3_ALLOW_NEW_SOURCES?1:0);
+ 				if((NULL != pg) && (pg->src_entry.filt_mode == MCAST_EXCLUDE)){
++                                             /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 					spin_lock(&br->multicast_lock);
+ #if 1//ZYXEL
+ 					br_multicast_del_pg(br, pg, port, 1);
+@@ -1632,6 +1648,7 @@
+ 				port->src_entry.src.s_addr = grec->grec_src[num_src];
+ 				pg =br_ip4_multicast_get_port_group(br, port, group, 1);
+ 				if((NULL!=pg) && (pg->src_entry.filt_mode == MCAST_INCLUDE)){
++                                             /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 					spin_lock(&br->multicast_lock);
+ #if 1//ZYXEL
+ 					br_multicast_del_pg(br, pg, port, 1);
+@@ -1847,6 +1864,7 @@
+ 	__be32 group;
+ 	int err = 0;
+ 
++         /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) ||
+ 	    (port && port->state == BR_STATE_DISABLED))
+@@ -1919,6 +1937,7 @@
+ 	struct in6_addr *group = NULL;
+ 	int err = 0;
+ 
++         /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) ||
+ 	    (port && port->state == BR_STATE_DISABLED))
+@@ -1983,6 +2002,7 @@
+ 	unsigned long now;
+ 	unsigned long time;
+ 
++         /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (!netif_running(br->dev) ||
+ 	    (port && port->state == BR_STATE_DISABLED) ||
+@@ -2656,6 +2676,7 @@
+ {
+ 	struct net_bridge *br = (void *)data;
+ 
++         /*if call this function by ioctl,modify spin_lock to spin_lock_bh*/
+ 	spin_lock(&br->multicast_lock);
+ 	if (br->multicast_startup_queries_sent <
+ 	    br->multicast_startup_query_count)
+@@ -2784,6 +2805,7 @@
+ 	return err;
+ }
+ 
++/*accrodint to kernel 3.18,do not modify spin_lock to spin_lock_bh,so can not call this function by ioctl*/
+ int br_multicast_set_port_router(struct net_bridge_port *p, unsigned long val)
+ {
+ 	struct net_bridge *br = p->br;
+@@ -2845,7 +2867,7 @@
+     igmp_hwnat_multicast_undrop();
+ #endif
+ 
+-	spin_lock(&br->multicast_lock);
++	spin_lock_bh(&br->multicast_lock);
+ 	if (br->multicast_disabled == !val)
+ 		goto unlock;
+ 
+@@ -2880,7 +2902,7 @@
+ 	}
+ 
+ unlock:
+-	spin_unlock(&br->multicast_lock);
++	spin_unlock_bh(&br->multicast_lock);
+ 
+ 	return err;
+ }
+@@ -2890,7 +2912,7 @@
+ 	int err = -ENOENT;
+ 	u32 old;
+ 
+-	spin_lock(&br->multicast_lock);
++	spin_lock_bh(&br->multicast_lock);
+ 	if (!netif_running(br->dev))
+ 		goto unlock;
+ 
+@@ -2920,7 +2942,7 @@
+ 	}
+ 
+ unlock:
+-	spin_unlock(&br->multicast_lock);
++	spin_unlock_bh(&br->multicast_lock);
+ 
+ 	return err;
+ }

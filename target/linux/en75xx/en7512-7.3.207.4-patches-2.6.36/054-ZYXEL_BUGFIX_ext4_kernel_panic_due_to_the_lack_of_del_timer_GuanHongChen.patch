@@ -1,0 +1,12 @@
+Index: linux-2.6.36/fs/ext4/super.c
+===================================================================
+--- linux-2.6.36.orig/fs/ext4/super.c	2017-06-19 15:45:31.175246494 +0800
++++ linux-2.6.36/fs/ext4/super.c	2017-06-19 15:54:53.417124018 +0800
+@@ -719,6 +719,7 @@
+ 			ext4_abort(sb, "Couldn't clean up the journal");
+ 	}
+ 
++	del_timer(&sbi->s_err_report);
+ 	ext4_release_system_zone(sb);
+ 	ext4_mb_release(sb);
+ 	ext4_ext_release(sb);

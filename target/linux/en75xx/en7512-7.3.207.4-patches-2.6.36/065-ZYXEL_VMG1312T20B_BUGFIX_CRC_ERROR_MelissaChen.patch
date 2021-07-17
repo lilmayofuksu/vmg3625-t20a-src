@@ -1,0 +1,44 @@
+Index: linux-2.6.36/arch/mips/kernel/cpu-probe.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/kernel/cpu-probe.c	2018-01-17 17:44:53.901079975 -0800
++++ linux-2.6.36/arch/mips/kernel/cpu-probe.c	2018-01-17 17:53:52.249091628 -0800
+@@ -25,6 +25,9 @@
+ #include <asm/system.h>
+ #include <asm/watch.h>
+ #include <asm/spram.h>
++#if defined(TCSUPPORT_CPU_EN7512) && defined(ZYXEL_VMG1312T20B_FIX_CRC_ERROR)
++#include <asm/tc3162/tc3162.h>
++#endif
+ /*
+  * Not all of the MIPS CPUs have the "wait" instruction available. Moreover,
+  * the implementation of the "wait" feature differs between CPU families. This
+@@ -72,6 +75,17 @@
+ 	return;
+ }
+ 
++#if defined(TCSUPPORT_CPU_EN7512) && defined(ZYXEL_VMG1312T20B_FIX_CRC_ERROR)
++void cpu_wait_en7512(void)
++{
++	volatile unsigned int ram_access = 0;
++	int cnt;
++
++	for (cnt = 0; cnt < 100; cnt++)
++		ram_access = VPint(0xA0000000); /* DRAM access */
++}
++#endif
++
+ /*
+  * The RM7000 variant has to handle erratum 38.  The workaround is to not
+  * have any pending stores when the WAIT instruction is executed.
+@@ -201,6 +215,11 @@
+ 		cpu_wait = r4k_wait;
+ 		if (read_c0_config7() & MIPS_CONF7_WII)
+ 			cpu_wait = r4k_wait_irqoff;
++	#if defined(TCSUPPORT_CPU_EN7512) && defined(ZYXEL_VMG1312T20B_FIX_CRC_ERROR)
++	if (isEN7512){
++			cpu_wait = cpu_wait_en7512;
++		}
++	#endif
+ 		break;
+ 
+ 	case CPU_74K:

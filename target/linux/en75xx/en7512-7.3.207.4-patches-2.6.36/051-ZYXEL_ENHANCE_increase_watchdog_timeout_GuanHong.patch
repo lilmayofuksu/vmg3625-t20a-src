@@ -1,0 +1,13 @@
+Index: linux-2.6.36/arch/mips/ralink/tcwdog.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/ralink/tcwdog.c	2017-05-18 18:36:11.308160803 +0800
++++ linux-2.6.36/arch/mips/ralink/tcwdog.c	2017-05-18 18:43:25.474521154 +0800
+@@ -227,7 +227,7 @@
+ 		printk("Watchdog cannot be stopped once started. \n");
+ 	}
+   
+-	timerSet(5, 2000 * TIMERTICKS_10MS, ENABLE, TIMER_TOGGLEMODE, TIMER_HALTDISABLE);
++	timerSet(5, 6000 * TIMERTICKS_10MS, ENABLE, TIMER_TOGGLEMODE, TIMER_HALTDISABLE);
+ 	timer_WatchDogConfigure(ENABLE, ENABLE);
+ 
+ 	watchdog_enabled=1;

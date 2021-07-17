@@ -1,0 +1,26 @@
+diff -Naur linux-2.6.36.orig/net/core/dev.c linux-2.6.36/net/core/dev.c
+--- linux-2.6.36.orig/net/core/dev.c	2017-09-21 14:12:35.694954500 +0800
++++ linux-2.6.36/net/core/dev.c	2017-09-21 14:17:37.314967885 +0800
+@@ -3980,10 +3980,22 @@
+ 			ret = deliver_skb(skb, pt_prev, orig_dev);
+ 			pt_prev = NULL;
+ 		}
++
++        /*+++ Kide@zyxel:
++         * remove vlan tag first as the packet carried vlan tag comes from eth_lan or wifi.
++         */
++        if (skb->protocol == htons(ETH_P_8021Q) && (orig_dev->name[0] == 'e' || orig_dev->name[0] == 'r'))
++            goto skip_rx_handler;
++        /*---*/
++
+ 		skb = rx_handler(skb);
+ 		if (!skb)
+ 			goto out;
+ 	}
++
++/*+++ Kide@zyxel: */
++skip_rx_handler:
++
+ #ifdef CONFIG_SMUX
+ 			/* 
+ 			 * Transfer all packets from PVC Device to Smux Device

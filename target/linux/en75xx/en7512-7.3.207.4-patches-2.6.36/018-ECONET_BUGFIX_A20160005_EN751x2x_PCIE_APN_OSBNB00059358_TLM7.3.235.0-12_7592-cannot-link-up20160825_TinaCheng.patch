@@ -1,0 +1,22 @@
+Index: linux-2.6.36/arch/mips/pci/pci-tc3162u.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/pci/pci-tc3162u.c	2016-08-30 16:02:16.176652442 +0800
++++ linux-2.6.36/arch/mips/pci/pci-tc3162u.c	2016-08-30 16:06:54.951618262 +0800
+@@ -1646,7 +1646,7 @@
+                 	mdelay(100);
+                 	tmp = regRead32(0xbfb00834);
+                 	regWrite32(0xbfb00834, (tmp & (~((1<<26) | (1<<27) | (1<<29)))));
+-                	mdelay(1);
++                	mdelay(5);
+          }
+          else
+          {
+@@ -1659,7 +1659,7 @@
+                 	mdelay(100);
+                 	tmp = regRead32(0xbfb00834);
+                 	regWrite32(0xbfb00834, (tmp & (~((1<<27) ))));
+-                	mdelay(1);
++                	mdelay(5);
+                   
+          }
+          /*release device*/

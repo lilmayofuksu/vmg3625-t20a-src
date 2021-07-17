@@ -1,0 +1,94 @@
+Index: linux-2.6.36/net/core/dev.c
+===================================================================
+--- linux-2.6.36.orig/net/core/dev.c	2017-09-19 11:01:52.214681152 +0800
++++ linux-2.6.36/net/core/dev.c	2017-09-19 11:40:23.826914146 +0800
+@@ -3671,6 +3671,11 @@
+ EXPORT_SYMBOL(xpon_igmp_acl_filter_hook);
+ #endif
+ 
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
++int (*bcm_1ag_handle_frame_check_hook)(struct sk_buff *) = NULL;
++int (*bcm_3ah_handle_frame_check_hook)(struct sk_buff *, struct net_device *) = NULL;
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
++
+ static int __netif_receive_skb(struct sk_buff *skb)
+ {
+ 	struct packet_type *ptype, *pt_prev;
+@@ -3687,6 +3692,11 @@
+ #if defined(TCSUPPORT_PON_MAC_FILTER)
+ 	int mac_filter_mode = MODE_HGU;
+ #endif
++
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
++	unsigned char oam_skip_smux = 0; //OAM packet don't into smux when service started.
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
++
+ 	
+ #ifdef TCSUPPORT_PON_VLAN
+ 	if(pon_vlan_get_mode_hook)
+@@ -3938,6 +3948,31 @@
+ ncls:
+ #endif
+ 
++	/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
++	/*The packet may into smux_pkt_recv_hook(), thus TMS module can't receive OAM packets.*/
++	/*Don't let OAM packets into smux when OAM service is started.*/
++
++	/* Check if 802.1ag service is started. */
++	if (bcm_1ag_handle_frame_check_hook)
++	{
++	   /* We want to skip smux for 1ag packet. */
++	   if (bcm_1ag_handle_frame_check_hook(skb))
++	   {
++		  oam_skip_smux = 1;
++	   }
++	}
++	/* Check if 802.3ah service is started. */
++	if (bcm_3ah_handle_frame_check_hook)
++	{
++	   /* We want to skip smux for 3ah packet, or for any packet when 3ah loopback was enabled. */
++	   if (bcm_3ah_handle_frame_check_hook(skb, skb->dev))
++	   {
++		  oam_skip_smux = 1;
++	   }
++	}
++	/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
++
++
+ 	/* Handle special case of bridge or macvlan */
+ 	rx_handler = rcu_dereference(skb->dev->rx_handler);
+ 	if (rx_handler) {
+@@ -3954,7 +3989,7 @@
+ 			 * Transfer all packets from PVC Device to Smux Device
+ 			 */
+ 		   if((orig_dev->priv_flags & IFF_RSMUX) && 
+-			smux_pkt_recv_hook) {
++			smux_pkt_recv_hook && !oam_skip_smux) { //ZYXEL -- Porting NComm TMS module for Ethernet OAM feature add "!oam_skip_smux" to not into SMUX
+ 			atomic_inc(&skb->users);
+ 				  ret = smux_pkt_recv_hook(skb, skb->dev, orig_dev);		  
+ #if ((defined(TCSUPPORT_WAN_ETHER) || defined(TCSUPPORT_WAN_PTM)) && defined(TCSUPPORT_MULTISERVICE_ON_WAN) ) || defined(TCSUPPORT_WAN_GPON) || defined(TCSUPPORT_WAN_EPON)
+@@ -7238,4 +7273,8 @@
+ #endif
+ #endif
+ 
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
++EXPORT_SYMBOL(bcm_1ag_handle_frame_check_hook);
++EXPORT_SYMBOL(bcm_3ah_handle_frame_check_hook);
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
+ 
+Index: linux-2.6.36/include/linux/if_ether.h
+===================================================================
+--- linux-2.6.36.orig/include/linux/if_ether.h	2017-09-19 11:01:52.202681152 +0800
++++ linux-2.6.36/include/linux/if_ether.h	2017-09-19 11:01:57.582681255 +0800
+@@ -87,6 +87,11 @@
+ #define ETH_P_FIP	0x8914		/* FCoE Initialization Protocol */
+ #define ETH_P_EDSA	0xDADA		/* Ethertype DSA [ NOT AN OFFICIALLY REGISTERED ID ] */
+ 
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
++#define ETH_P_8021AG	0x8902		/* 802.1ag Connectivity Fault Mgmt */
++#define ETH_P_8023AH	0x8809      /* 802.3ah Ethernet OAM */
++/* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
++
+ /*
+  *	Non DIX types. Won't clash for 1500 types.
+  */

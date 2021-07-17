@@ -1,0 +1,68 @@
+Index: linux-2.6.36/net/bridge/br_multicast.c
+===================================================================
+--- linux-2.6.36.orig/net/bridge/br_multicast.c	2018-05-29 16:04:16.665266000 +0800
++++ linux-2.6.36/net/bridge/br_multicast.c	2018-05-29 16:10:44.570443004 +0800
+@@ -3289,6 +3289,7 @@
+ }
+ #endif
+ 
++
+ /**************************************************
+ Function: Delete a entry maintained by SW
+ Input: 
+@@ -3296,9 +3297,45 @@
+ Return: 
+ 	  0: ok
+ **************************************************/
+-
+ int igmp_hwnat_delete_entry(IGMP_HWNATEntry_t* entry)
+ {
++    int timer_flag;
++    if (entry == NULL)
++    {
++        IGMP_HWNAT_DEBUG("entry == NULL");
++        return 0;
++    }
++    IGMP_HWNAT_DEBUG("enter");
++    
++    timer_flag = try_to_del_timer_sync(&entry->age_timer);
++    if (-1 == timer_flag)
++    {
++        IGMP_HWNAT_DEBUG("try to delete timer when timer is running on other cpu \n");
++    }
++    else{
++#ifdef TCSUPPORT_MULTICAST_SPEED
++        list_del_rcu(&(entry->list));
++        call_rcu_bh(&(entry->rcu), igmp_hwnat_free);
++#else
++        list_del(&entry->list);
++        igmp_hwnat_free(entry);
++#endif
++    }
++        return 0;
++    
++}
++
++/**************************************************
++Function: Delete a entry maintained by SW only called by timeout
++old version of igmp_hwnat_delete_entry
++Input: 
++	entry: pointer to struct IGMP_HWNATEntry_t
++Return: 
++	  0: ok
++**************************************************/
++
++int igmp_hwnat_delete_entry_timer(IGMP_HWNATEntry_t* entry)
++{
+ 	if (entry == NULL)
+ 	{
+ 		IGMP_HWNAT_DEBUG("entry == NULL");
+@@ -3518,7 +3555,7 @@
+ 		if (igmp_hwnat_check_entry_valid(entry)==0)
+ 		{
+ 			spin_lock(&hwnat_lock);
+-			igmp_hwnat_delete_entry(entry);	
++			igmp_hwnat_delete_entry_timer(entry);	
+ 			spin_unlock(&hwnat_lock);
+ 		}
+ 		else

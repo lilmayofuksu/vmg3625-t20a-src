@@ -1,0 +1,84 @@
+Index: linux-2.6.36/net/8021q/vlan.c
+===================================================================
+--- linux-2.6.36.orig/net/8021q/vlan.c	2018-01-29 10:34:56.333574364 +0800
++++ linux-2.6.36/net/8021q/vlan.c	2018-01-29 10:34:57.469574364 +0800
+@@ -90,6 +90,10 @@
+ 	return NULL;
+ }
+ 
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++extern struct net_device *(*find_vlan_dev_hook)(struct net_device *real_dev, u16 vlan_id);
++#endif
++
+ /*  Find the protocol handler.  Assumes VID < VLAN_VID_MASK.
+  *
+  * Must be invoked with RCU read lock (no preempt)
+@@ -743,6 +747,11 @@
+ 	dev_add_pack(&QinQ_9100_packet_type);
+ #endif
+ 	vlan_ioctl_set(vlan_ioctl_handler);
++
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++    find_vlan_dev_hook = __find_vlan_dev;
++#endif
++
+ 	return 0;
+ 
+ err4:
+@@ -777,6 +786,11 @@
+ 	rcu_barrier(); /* Wait for completion of call_rcu()'s */
+ 
+ 	vlan_gvrp_uninit();
++
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++    find_vlan_dev_hook = NULL;
++#endif
++
+ }
+ 
+ module_init(vlan_proto_init);
+Index: linux-2.6.36/net/core/dev.c
+===================================================================
+--- linux-2.6.36.orig/net/core/dev.c	2018-01-29 10:34:57.373574364 +0800
++++ linux-2.6.36/net/core/dev.c	2018-01-30 11:19:12.405773672 +0800
+@@ -198,6 +198,10 @@
+ #endif
+ 
+ 
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++struct net_device *(*find_vlan_dev_hook)(struct net_device *real_dev, u16 vlan_id);
++EXPORT_SYMBOL(find_vlan_dev_hook);
++#endif
+ 
+ #if defined(TC_SUPPORT_3G) && defined(TR068_LED)
+ void (*Dongle_InternetLed_hook)(void);
+@@ -3693,6 +3697,12 @@
+ 	int mac_filter_mode = MODE_HGU;
+ #endif
+ 
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++    struct vlan_hdr *vhdr;
++    u16 vlan_id;
++    u16 vlan_tci;
++#endif
++
+ /* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature (Start)*/
+ 	unsigned char oam_skip_smux = 0; //OAM packet don't into smux when service started.
+ /* ZYXEL -- Porting NComm TMS module for Ethernet OAM feature -- Steve 2017.08.03 (End)*/
+@@ -3985,7 +3995,15 @@
+          * remove vlan tag first as the packet carried vlan tag comes from eth_lan or wifi.
+          */
+         if (skb->protocol == htons(ETH_P_8021Q) && (orig_dev->name[0] == 'e' || orig_dev->name[0] == 'r'))
+-            goto skip_rx_handler;
++        {
++#if 1 /* Zyxel, Jake, 2017-01-26, check vlan dev before do rx_handler. */
++            vhdr = (struct vlan_hdr *)skb->data;
++            vlan_tci = ntohs(vhdr->h_vlan_TCI);
++            vlan_id = vlan_tci & VLAN_VID_MASK;
++            if (find_vlan_dev_hook && find_vlan_dev_hook(skb->dev, vlan_id))
++#endif
++                goto skip_rx_handler;
++        }
+         /*---*/
+ 
+ 		skb = rx_handler(skb);

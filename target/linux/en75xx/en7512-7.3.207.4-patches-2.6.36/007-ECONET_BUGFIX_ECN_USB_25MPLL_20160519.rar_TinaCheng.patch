@@ -1,0 +1,81 @@
+Index: linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.c
+===================================================================
+--- linux-2.6.36.orig/drivers/usb/host/mtk_xhci/mtk-phy.c	2016-07-19 16:51:52.211685903 +0800
++++ linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.c	2016-07-19 17:19:17.584753158 +0800
+@@ -42,32 +42,44 @@
+ extern int (*I2CReaderPtr)(u8 DevAddr, u8 WordAddr, u8* data_value, u8 data_len);
+ #define USB_PHY_DEV_ADDR	        0x60
+ 
+-PHY_INT32 u3phy_config(){
++void static setup_25M_PLL(void)
++{
++    if(readl(0xbfb0008c)&0x01){
++        U3HWriteReg8(0xbfa80c1c, 0x18);
++        U3HWriteReg8(0xbfa80c1d, 0x18);
++        U3HWriteReg8(0xbfa80c1f, 0x18);
++        U3HWriteReg32(0xbfa80c24, 0x18000000);
++        U3HWriteReg32(0xbfa80c28, 0x18000000);
++        U3HWriteReg32(0xbfa80c30, 0x18000000);
++        U3HWriteReg32(0xbfa80c38, 0x004a004a);
++        U3HWriteReg8(0xbfa80c3e, 0x4a);
++        U3HWriteReg8(0xbfa80c3f, 0x0);
++        U3HWriteReg8(0xbfa80c42, 0x48);
++        U3HWriteReg8(0xbfa80c43, 0x0);
++        U3HWriteReg8(0xbfa80c44, 0x48);
++        U3HWriteReg8(0xbfa80c45, 0x0);
++        U3HWriteReg8(0xbfa80c48, 0x48);
++        U3HWriteReg8(0xbfa80c49, 0x0);
++
++        U3HWriteReg8(0xbfa80b24, 0x90);
++        U3HWriteReg8(0xbfa80b25, 0x1);
++        U3HWriteReg32(0xbfa80b10, 0x1c000000);
++        U3HWriteReg8(0xbfa80b0b, 0xe);
++    }
++    return;
++}
++
++PHY_INT32 u3phy_config()
++{
++
++	U3HWriteReg32(0xbfa80a28,  ((U3HReadReg32(0xbfa80a28) &(~(0x1ff<<9)) )|(0x10<<9) ));
++	U3HWriteReg32(0xbfa80a2c,  ((U3HReadReg32(0xbfa80a2c) &(~0x1ff) )|0x10 ));
++	U3HWriteReg32 (0xbfa8090c,((U3HReadReg32(0xbfa8090c) &(~(0x3f<<16)) )|(0x34<<16) ));
++	setup_25M_PLL();
++
+ 	if(isEN7526D || isEN7526G || isEN7513 || isEN7513G || isEN7521G || isEN7586){
+ 		writel(0xC0240008, 0xBFA8081C); /* port0 */
+ 		writel(0xC0240000, 0xBFA8101C); /* port1 */
+-		if(readl(0xbfb0008c)&0x01){
+-			U3HWriteReg8(0xbfa80c1c, 0x18);
+-			U3HWriteReg8(0xbfa80c1d, 0x18);
+-			U3HWriteReg8(0xbfa80c1f, 0x18);
+-			U3HWriteReg32(0xbfa80c24, 0x18000000);
+-			U3HWriteReg32(0xbfa80c28, 0x18000000);
+-			U3HWriteReg32(0xbfa80c30, 0x18000000);
+-			U3HWriteReg32(0xbfa80c38, 0x004a004a);
+-			U3HWriteReg8(0xbfa80c3e, 0x4a);
+-			U3HWriteReg8(0xbfa80c3f, 0x0);
+-			U3HWriteReg8(0xbfa80c42, 0x48);
+-			U3HWriteReg8(0xbfa80c43, 0x0);
+-			U3HWriteReg8(0xbfa80c44, 0x48);
+-			U3HWriteReg8(0xbfa80c45, 0x0);
+-			U3HWriteReg8(0xbfa80c48, 0x48);
+-			U3HWriteReg8(0xbfa80c49, 0x0);
+-
+-			U3HWriteReg8(0xbfa80b24, 0x90);
+-			U3HWriteReg8(0xbfa80b25, 0x1);
+-			U3HWriteReg32(0xbfa80b10, 0x1c000000);
+-			U3HWriteReg8(0xbfa80b0b, 0xe);
+-		}
+ 		printk(KERN_ERR "BGA USB PHY config");
+ 		return 1;
+ 	}else if(isEN7526F || isEN7512){
+@@ -259,7 +271,7 @@
+ 		ret = u3phy_config();
+ 	}
+ 	u2_slew_rate_calibration();
+-	printk(KERN_ERR "EN7512 USB PHY V1.0");
++	printk(KERN_ERR "USB driver version: 751221.2.20160516");
+ 	return ret;
+ }
+ 

@@ -1,0 +1,13 @@
+Index: linux-2.6.36/net/netfilter/nf_conntrack_rtsp.c
+===================================================================
+--- linux-2.6.36.orig/net/netfilter/nf_conntrack_rtsp.c	2018-05-09 18:40:22.840062562 +0800
++++ linux-2.6.36/net/netfilter/nf_conntrack_rtsp.c	2018-05-16 14:57:49.615366119 +0800
+@@ -50,7 +50,7 @@
+ #include <linux/ctype.h>
+ #define MAX_SIMUL_SETUP 8 /* XXX: use max_outstanding */
+ 
+-#define MAX_PORTS 8
++#define MAX_PORTS 16
+ static int ports[MAX_PORTS];
+ static int num_ports = 0;
+ static int max_outstanding = 8;

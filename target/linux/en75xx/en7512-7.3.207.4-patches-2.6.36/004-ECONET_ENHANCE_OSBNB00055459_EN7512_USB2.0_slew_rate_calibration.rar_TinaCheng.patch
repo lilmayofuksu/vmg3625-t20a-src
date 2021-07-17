@@ -1,0 +1,160 @@
+Index: linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.c
+===================================================================
+--- linux-2.6.36.orig/drivers/usb/host/mtk_xhci/mtk-phy.c	2016-07-19 16:32:14.467154771 +0800
++++ linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.c	2016-07-19 16:51:52.211685903 +0800
+@@ -68,10 +68,12 @@
+ 			U3HWriteReg32(0xbfa80b10, 0x1c000000);
+ 			U3HWriteReg8(0xbfa80b0b, 0xe);
+ 		}
++		printk(KERN_ERR "BGA USB PHY config");
+ 		return 1;
+ 	}else if(isEN7526F || isEN7512){
+ 		writel(0xC0241580, 0xBFA8081C);
+ 		writel(0xC0240000, 0xBFA8101C);
++		printk(KERN_ERR "QFP USB PHY config");
+ 		return 1;
+ 	}else
+ 		return 0;
+@@ -172,6 +174,81 @@
+ 	return 1;
+ }
+ 
++PHY_INT32 u2_slew_rate_calibration(void){
++	PHY_INT32 i=0;
++	PHY_INT32 j=0;
++	PHY_INT32 fgRet = 0;
++	PHY_INT32 u4FmOut = 0;
++	PHY_INT32 u4Tmp = 0;
++	PHY_INT32 U2_PHYA_CR0[U2_port_num]={0xbfa80810, 0xbfa81010};
++
++	for(j=0;j<U2_port_num;j++)
++	{
++		printk(KERN_ERR "port %d u2_slew_rate_calibration\n",j);
++		// => RG_USB20_HSTX_SRCAL_EN = 1
++		// enable HS TX SR calibration
++		U3HWriteReg32((void *)(U2_PHYA_CR0[j]), (U3HReadReg32((void *)(U2_PHYA_CR0[j]))&(~RG_USB20_HSTX_SRCAL_EN)|((0x1)<<RG_USB20_HSTX_SRCAL_EN_OFST)));
++		DRV_MSLEEP(1);
++		//printk("%x\n",U2_PHYA_CR0[j]);
++		//printk("%x\n",U3HReadReg32((void *)(U2_PHYA_CR0[j])));
++		// => RG_FRCK_EN = 1
++		// Enable free run clock
++		U3HWriteReg32(0xbfa80110, (U3HReadReg32(0xbfa80110)&(~RG_FRCK_EN)|((0x1)<<RG_FRCK_EN_OFST)));
++		//printk("%x\n",U3HReadReg32(0xbfa80110));
++		// => RG_MONCLK_SEL = 0x0/0x1 for port0/port1
++		// Setting MONCLK_SEL
++		U3HWriteReg32(0xbfa80100, (U3HReadReg32(0xbfa80100)&(~RG_MONCLK_SEL)|((j)<<RG_MONCLK_SEL_OFST)));
++		// => RG_CYCLECNT = 0x400
++		// Setting cyclecnt = 0x400
++		U3HWriteReg32(0xbfa80100, (U3HReadReg32(0xbfa80100)&(~RG_CYCLECNT)|((0x400)<<RG_CYCLECNT_OFST)));
++		// => RG_FREQDET_EN = 1
++		// Enable frequency meter
++		U3HWriteReg32(0xbfa80100, (U3HReadReg32(0xbfa80100)&(~RG_FREQDET_EN)|((0x1)<<RG_FREQDET_EN_OFST)));
++		//printk("%x\n",U3HReadReg32(0xbfa80100));
++		// wait for FM detection done, set 10ms timeout
++		for(i=0; i<10; i++){
++			u4FmOut = U3HReadReg32(0xbfa8010c);
++			// check if FM detection done
++			if (u4FmOut != 0)
++			{
++				// => u4FmOut = USB_FM_OUT
++				// read FM_OUT
++				printk(KERN_ERR "FM_OUT value = %d(0x%08X)\n", u4FmOut, u4FmOut);
++				fgRet = 0;
++				//printk(KERN_ERR "FM detection done! loop = %d\n", i);
++				break;
++			}
++
++			fgRet = 1;
++			DRV_MSLEEP(1);
++		}
++		// => RG_FREQDET_EN = 0
++		// disable frequency meter
++		U3HWriteReg32(0xbfa80100, (U3HReadReg32(0xbfa80100)&(~RG_FREQDET_EN)|((0x0)<<RG_FREQDET_EN_OFST)));
++
++		// => RG_FRCK_EN = 0
++		// disable free run clock
++		U3HWriteReg32(0xbfa80110, (U3HReadReg32(0xbfa80110)&(~RG_FRCK_EN)|((0x0)<<RG_FRCK_EN_OFST)));
++
++		// => RG_USB20_HSTX_SRCAL_EN = 0
++		// disable HS TX SR calibration
++		U3HWriteReg32((void *)(U2_PHYA_CR0[j]), (U3HReadReg32((void *)(U2_PHYA_CR0[j]))&(~RG_USB20_HSTX_SRCAL_EN)|((0x0)<<RG_USB20_HSTX_SRCAL_EN_OFST)));
++		DRV_MSLEEP(1);
++
++		if(u4FmOut == 0){
++			U3HWriteReg32((void *)(U2_PHYA_CR0[j]), (U3HReadReg32((void *)(U2_PHYA_CR0[j]))&(~RG_USB20_HSTX_SRCTRL)|((0x4)<<RG_USB20_HSTX_SRCTRL_OFST)));
++			fgRet = 1;
++		}
++		else{
++			// set reg = (1024/FM_OUT) * REF_CK * U2_SR_COEF (round to the nearest digits)
++			u4Tmp = (((1024 * REF_CK * U2_SR_COEF) / u4FmOut) + 500) / 1000;
++			printk(KERN_ERR "SR calibration value = %d\n", (PHY_UINT8)u4Tmp);
++			U3HWriteReg32((void *)(U2_PHYA_CR0[j]), (U3HReadReg32((void *)(U2_PHYA_CR0[j]))&(~RG_USB20_HSTX_SRCTRL)|((u4Tmp&0x7)<<RG_USB20_HSTX_SRCTRL_OFST)));
++		}
++	}
++	return fgRet;
++}
++
+ int ecnt_u3h_phy_init(void)
+ {
+ 	int ret = 0;
+@@ -181,6 +258,8 @@
+ 	}else{
+ 		ret = u3phy_config();
+ 	}
++	u2_slew_rate_calibration();
++	printk(KERN_ERR "EN7512 USB PHY V1.0");
+ 	return ret;
+ }
+ 
+Index: linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.h
+===================================================================
+--- linux-2.6.36.orig/drivers/usb/host/mtk_xhci/mtk-phy.h	2016-07-19 16:32:14.467154771 +0800
++++ linux-2.6.36/drivers/usb/host/mtk_xhci/mtk-phy.h	2016-07-19 16:49:03.227481671 +0800
+@@ -1,7 +1,7 @@
+ #ifndef __MTK_PHY_NEW_H
+ #define __MTK_PHY_NEW_H
+ 
+-#define REF_CK 25
++#define REF_CK 20
+ 
+ /* include system library */
+ #include <linux/gfp.h>
+@@ -44,6 +44,29 @@
+ #define U3_PHYA_BASE_P1		(PHY_BASE+0x1300)
+ #define U3_PHYA_DA_BASE_P1	(PHY_BASE+0x1400)
+ 
++/*EN7512 RG location used for u2 slew rate calibration YMC add*/
++//U3D_USBPHYACR5
++#define RG_USB20_HSTX_SRCAL_EN             (0x1<<23) //23:23
++#define RG_USB20_HSTX_SRCTRL               (0x7<<16) //18:16
++//U3D_FMCR0
++#define RG_MONCLK_SEL                             (0x3<<26) //27:26
++#define RG_FM_MODE                                (0x1<<25) //25:25
++#define RG_FREQDET_EN                             (0x1<<24) //24:24
++#define RG_CYCLECNT                               (0xffffff<<0) //23:0
++//U3D_FMMONR1
++#define RG_FRCK_EN                                (0x1<<8) //8:8
++/*offset*/
++//U3D_USBPHYACR5
++#define RG_USB20_HSTX_SRCAL_EN_OFST        (23)
++#define RG_USB20_HSTX_SRCTRL_OFST          (16)
++//U3D_FMCR0
++#define RG_MONCLK_SEL_OFST                        (26)
++#define RG_FM_MODE_OFST                           (25)
++#define RG_FREQDET_EN_OFST                        (24)
++#define RG_CYCLECNT_OFST                          (0)
++//U3D_FMMONR1
++#define RG_FRCK_EN_OFST                           (8)
++
+ /*
+ 
+ 0x00000100	MODULE	ssusb_sifslv_fmreg	ssusb_sifslv_fmreg
+@@ -69,6 +92,8 @@
+ /* CONSTANT DEFINE */
+ #define PHY_FALSE	0
+ #define PHY_TRUE	1
++#define U2_SR_COEF 	28
++#define U2_port_num 2
+ 
+ /* MACRO DEFINE */
+ #define DRV_WriteReg32(addr,data)       ((*(volatile PHY_UINT32 *)(addr)) = (unsigned long)(data))

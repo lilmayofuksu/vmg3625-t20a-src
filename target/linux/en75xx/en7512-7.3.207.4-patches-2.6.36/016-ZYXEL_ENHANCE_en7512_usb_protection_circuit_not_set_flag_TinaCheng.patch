@@ -1,0 +1,87 @@
+Index: linux-2.6.36/arch/mips/ralink/usb_oc_protect.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/ralink/usb_oc_protect.c	2016-08-17 21:43:24.158929689 +0800
++++ linux-2.6.36/arch/mips/ralink/usb_oc_protect.c	2016-08-17 21:46:53.387901789 +0800
+@@ -117,6 +117,7 @@
+ static int OC_FLG=0;
+ static int RESET_STATE=0;
+ 
++#ifdef ZYXEL_USB_OC_FLAG_SUPPORT
+ static int flag_read_proc(char *page, char **start, off_t off,
+ 		int count, int *eof, void *data){
+ 
+@@ -136,6 +137,7 @@
+ 
+ 	return len;
+ }
++#endif
+ static int enable_read_proc(char *page, char **start, off_t off,
+ 		int count, int *eof, void *data){
+ 
+@@ -218,12 +220,14 @@
+ 		SET_GPIO_OUT(POWERSWITCH_ENABLE_GPIO);
+ 		DBG_MSG("set GPIO %d to output\n", POWERSWITCH_ENABLE_GPIO);
+ 	}
++	#ifdef ZYXEL_USB_OC_FLAG_SUPPORT
+ 	// make sure Over Current Flag pin is input
+ 	if(IS_GPIO_OUT(USB_OVERCURRENT_FLAG_GPIO)) {
+ 		SET_GPIO_IN(USB_OVERCURRENT_FLAG_GPIO);
+ 		DBG_MSG("set GPIO %d to input\n", USB_OVERCURRENT_FLAG_GPIO);
+ 	}
+ 	DBG_MSG("GPIO %d mode is %x\n", USB_OVERCURRENT_FLAG_GPIO, (regRead32(CR_GPIO_CTRL)&(0x00000003 << (USB_OVERCURRENT_FLAG_GPIO* 2))) );
++	#endif
+ 	DBG_MSG("GPIO %d mode is %x\n", POWERSWITCH_ENABLE_GPIO, (regRead32(CR_GPIO_CTRL)&(0x00000003 << (POWERSWITCH_ENABLE_GPIO* 2))) );
+ }
+ 
+@@ -247,7 +251,9 @@
+ 		#endif
+ 		RESET_STATE=0;
+ 		OC_FLG=0;
+-	}else {
++	}
++	#ifdef ZYXEL_USB_OC_FLAG_SUPPORT
++	else {
+ 		if(!GET_GPIO(USB_OVERCURRENT_FLAG_GPIO)) {
+ 			OC_FLG++;
+ 			if(OC_FLG >= USB_OC_TIMEOUT) {
+@@ -258,7 +264,7 @@
+ 			OC_FLG=0;
+ 	}
+ 	DBG_MSG("GET_GPIO(USB_OVERCURRENT_FLAG_GPIO)=%d, OC_FLG=%d\n", GET_GPIO(USB_OVERCURRENT_FLAG_GPIO)?1:0, OC_FLG);
+-
++	#endif
+ 	mod_timer(&usb_timer, jiffies + USB_OC_TIMMER_INTERVAL);
+ 
+ }
+@@ -284,16 +290,17 @@
+ 		usb_oc_proc_enable = create_proc_entry("enable", 0, usb_oc_proc_dir);
+ 		usb_oc_proc_enable->read_proc = enable_read_proc;
+ 		usb_oc_proc_enable->write_proc = enable_write_proc;
+-
++		#ifdef ZYXEL_USB_OC_FLAG_SUPPORT
+ 		usb_oc_proc_falg = create_proc_entry("flag", 0, usb_oc_proc_dir);
+ 		usb_oc_proc_falg->read_proc = flag_read_proc;
+ 		usb_oc_proc_falg->write_proc = NULL;
+-
++		#endif
+ 		usb_oc_proc_debug = create_proc_entry("debug", 0, usb_oc_proc_dir);
+ 		usb_oc_proc_debug->read_proc = NULL;
+ 		usb_oc_proc_debug->write_proc = debug_write_proc;
+ 	}
+ 	printk("USB overcurrent protection.\n");
++
+ 	return 0;
+ }
+ 
+@@ -304,9 +311,11 @@
+ 	if(usb_oc_proc_enable){
+ 		remove_proc_entry("enable", usb_oc_proc_enable);
+ 	}
++	#ifdef ZYXEL_USB_OC_FLAG_SUPPORT
+ 	if(usb_oc_proc_falg){
+ 		remove_proc_entry("flag", usb_oc_proc_falg);
+ 	}
++	#endif
+ 	if(usb_oc_proc_debug){
+ 		remove_proc_entry("debug", usb_oc_proc_debug);
+ 	}

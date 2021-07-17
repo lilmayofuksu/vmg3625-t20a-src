@@ -1,0 +1,234 @@
+Index: linux-2.6.36/include/linux/foe_hook.h
+===================================================================
+--- linux-2.6.36.orig/include/linux/foe_hook.h	2017-12-06 14:31:04.326289764 +0800
++++ linux-2.6.36/include/linux/foe_hook.h	2017-12-06 14:31:04.750289764 +0800
+@@ -94,6 +94,7 @@
+ extern int (*ra_sw_nat_hook_rx_set_l2lu) (struct sk_buff * skb);
+ #endif
+ extern int (*ra_sw_nat_hook_rx) (struct sk_buff * skb);
++extern int (*ra_sw_nat_get_offload_type) (struct sk_buff * skb);
+ #ifdef TCSUPPORT_MT7510_FE
+ extern int (*ra_sw_nat_hook_tx) (struct sk_buff * skb, struct port_info * pinfo, int magic);
+ #else
+Index: linux-2.6.36/net/core/ecnt_net_utility.c
+===================================================================
+--- linux-2.6.36.orig/net/core/ecnt_net_utility.c	2017-12-06 14:31:03.718289764 +0800
++++ linux-2.6.36/net/core/ecnt_net_utility.c	2017-12-06 14:33:09.353658413 +0800
+@@ -53,16 +53,25 @@
+ *                  D E F I N E S   &   C O N S T A N T S
+ *************************************************************************
+ */
+-
++#define RPS_QUEUE_NUM   2
+ /************************************************************************
+ *                  M A C R O S
+ *************************************************************************
+ */
++#define MAX_QUEUE_LEN 2000
+ 
+ /************************************************************************
+ *                  D A T A   T Y P E S
+ *************************************************************************
+ */
++struct ecnt_softnet_data{
++	struct sk_buff_head	    process_queue;
++	struct call_single_data	csd;
++	unsigned            processed;
++	unsigned		    dropped;
++	struct sk_buff_head	    input_pkt_queue;
++	struct napi_struct	    napi;
++};
+ 
+ /************************************************************************
+ *                  E X T E R N A L   D A T A   D E C L A R A T I O N S
+@@ -79,6 +88,9 @@
+ *                  P U B L I C   D A T A
+ *************************************************************************
+ */
++struct ecnt_softnet_data rps_queue[RPS_QUEUE_NUM];
++int (*wlan_ratelimit_enqueue_hook) (struct sk_buff * skb,unsigned char direction) = NULL;
++EXPORT_SYMBOL(wlan_ratelimit_enqueue_hook);
+ int (*match_multicast_vtag_check)
+ (struct sk_buff *skb, struct net_device *vdev);
+ EXPORT_SYMBOL(match_multicast_vtag_check);
+@@ -148,3 +160,160 @@
+ }
+ EXPORT_SYMBOL(__is_ip_udp);
+ 
++int enqueue_to_cpu_queue(struct sk_buff *skb, int cpu, int queue)
++{
++    struct ecnt_softnet_data *sd;
++    unsigned long flags;
++    unsigned int queue_len;
++
++    sd = &rps_queue[queue];
++
++    local_irq_save(flags);
++    spin_lock(&sd->input_pkt_queue.lock);
++    queue_len = skb_queue_len(&sd->input_pkt_queue);
++    if (queue_len <= MAX_QUEUE_LEN) {
++        if (queue_len){
++enqueue:
++            __skb_queue_tail(&sd->input_pkt_queue, skb);
++            spin_unlock(&sd->input_pkt_queue.lock);
++            local_irq_restore(flags);
++            return NET_RX_SUCCESS;
++        }
++        if(!__test_and_set_bit(NAPI_STATE_SCHED, &sd->napi.state))
++        {
++            if (cpu != get_cpu()){
++                if(cpu_online(cpu)){
++                    __smp_call_function_single(cpu, &sd->csd, 0);
++                }
++            }
++            else{
++                __napi_schedule(&sd->napi);
++            }
++            
++            put_cpu();
++        }
++        goto enqueue;
++    }
++
++    sd->dropped++;
++    spin_unlock(&sd->input_pkt_queue.lock);
++
++    local_irq_restore(flags);
++
++    kfree_skb(skb);
++    return NET_RX_DROP;
++}
++EXPORT_SYMBOL(enqueue_to_cpu_queue);
++
++inline int ecnt_dev_xmit(struct ecnt_softnet_data *sd, struct sk_buff * skb)
++{
++    if(skb->dev){
++        if((wlan_ratelimit_enqueue_hook) && 
++            ('r' == skb->dev->name[0]) && 
++            (1 == wlan_ratelimit_enqueue_hook(skb,1))){/*wifi tx*/
++            sd->processed++;
++		    return 0;
++        }
++        sd->processed++;
++        skb->dev->netdev_ops->ndo_start_xmit(skb, skb->dev);
++    }
++    else{
++        sd->dropped++;
++        kfree_skb(skb);
++    }
++
++    return 0;
++}
++
++inline int ecnt_rps_poll(struct napi_struct *napi, int quota, struct ecnt_softnet_data *sd, 
++            int (*ecnt_xmit)(struct ecnt_softnet_data *sd, struct sk_buff * skb))
++{
++    int work = 0;
++    napi->weight = quota;
++    local_irq_disable();
++    while (work < quota) {
++        struct sk_buff *skb;
++        unsigned int qlen;
++        while ((skb = __skb_dequeue(&sd->process_queue))) {
++            local_irq_enable();
++            ecnt_xmit(sd, skb);
++            local_irq_disable();
++            if (++work >= quota) {
++                local_irq_enable();
++                return work;
++            }
++        }
++
++        spin_lock(&sd->input_pkt_queue.lock);
++        qlen = skb_queue_len(&sd->input_pkt_queue);
++        if (qlen)
++            skb_queue_splice_tail_init(&sd->input_pkt_queue,
++                           &sd->process_queue);
++
++        if (qlen < quota - work) {
++            list_del(&napi->poll_list);
++            napi->state = 0;
++            quota = work + qlen;
++        }
++
++        spin_unlock(&sd->input_pkt_queue.lock);
++    }
++    local_irq_enable();
++
++    return work;
++}
++
++inline int ecnt_rps_queue0_poll(struct napi_struct *napi, int quota)
++{
++	struct ecnt_softnet_data *sd = &rps_queue[0];
++
++	return ecnt_rps_poll(napi, quota, sd, ecnt_dev_xmit);
++}
++
++inline int ecnt_rps_queue1_poll(struct napi_struct *napi, int quota)
++{
++	struct ecnt_softnet_data *sd = &rps_queue[1];
++
++	return ecnt_rps_poll(napi, quota, sd, ecnt_dev_xmit);
++}
++
++void ecnt_rps_napi_init(void)
++{
++    int i;
++
++    for(i=0;i<RPS_QUEUE_NUM;i++)
++    {
++        memset(&rps_queue[i], 0, sizeof(rps_queue[i]));
++        
++        skb_queue_head_init(&rps_queue[i].input_pkt_queue);
++        skb_queue_head_init(&rps_queue[i].process_queue);
++
++        rps_queue[i].csd.func = __napi_schedule;
++        rps_queue[i].csd.info = &rps_queue[i].napi;
++        rps_queue[i].csd.flags = 0;
++
++        rps_queue[i].napi.weight = 128;
++        rps_queue[i].napi.gro_list = NULL;
++        rps_queue[i].napi.gro_count = 0;
++    }
++
++    rps_queue[0].napi.poll = ecnt_rps_queue0_poll;
++    rps_queue[1].napi.poll = ecnt_rps_queue1_poll;
++
++    return;
++}
++EXPORT_SYMBOL(ecnt_rps_napi_init);
++
++void ecnt_rps_print_stat(void)
++{
++    int i;
++    
++    for(i=0;i<RPS_QUEUE_NUM;i++)
++    {
++        printk("rps_queue[%d]  processed          %d\n", i, rps_queue[i].processed);
++        printk("rps_queue[%d]  dropped            %d\n", i, rps_queue[i].dropped);
++    }
++
++    return;
++}
++EXPORT_SYMBOL(ecnt_rps_print_stat);
+Index: linux-2.6.36/net/nat/foe_hook/hook.c
+===================================================================
+--- linux-2.6.36.orig/net/nat/foe_hook/hook.c	2017-12-06 14:31:04.326289764 +0800
++++ linux-2.6.36/net/nat/foe_hook/hook.c	2017-12-06 14:31:04.754289764 +0800
+@@ -41,6 +41,7 @@
+ EXPORT_SYMBOL(ra_sw_nat_hook_rx_set_l2lu);
+ #endif
+ int (*ra_sw_nat_hook_rx) (struct sk_buff * skb) = NULL;
++int (*ra_sw_nat_get_offload_type) (struct sk_buff * skb) = NULL;
+ #ifdef TCSUPPORT_MT7510_FE
+ int (*ra_sw_nat_hook_tx) (struct sk_buff * skb, struct port_info * pinfo, int magic);
+ #else
+@@ -129,6 +130,7 @@
+ //#endif
+ 
+ EXPORT_SYMBOL(ra_sw_nat_hook_rx);
++EXPORT_SYMBOL(ra_sw_nat_get_offload_type);
+ EXPORT_SYMBOL(ra_sw_nat_hook_tx);
+ EXPORT_SYMBOL(ra_sw_nat_hook_free);
+ EXPORT_SYMBOL(ra_sw_nat_hook_rxinfo);

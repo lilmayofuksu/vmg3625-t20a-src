@@ -1,0 +1,55 @@
+Index: linux-2.6.36/fs/super.c
+===================================================================
+--- linux-2.6.36.orig/fs/super.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/fs/super.c	2019-02-14 15:33:09.635093739 +0800
+@@ -70,6 +70,7 @@
+ #else
+ 		INIT_LIST_HEAD(&s->s_files);
+ #endif
++		s->s_bdi = &default_backing_dev_info;
+ 		INIT_LIST_HEAD(&s->s_instances);
+ 		INIT_HLIST_HEAD(&s->s_anon);
+ 		INIT_LIST_HEAD(&s->s_inodes);
+@@ -947,6 +948,7 @@
+ 		goto out_free_secdata;
+ 	BUG_ON(!mnt->mnt_sb);
+ 	WARN_ON(!mnt->mnt_sb->s_bdi);
++	WARN_ON(mnt->mnt_sb->s_bdi == &default_backing_dev_info);
+ 	mnt->mnt_sb->s_flags |= MS_BORN;
+ 
+ 	error = security_sb_kern_mount(mnt->mnt_sb, flags, secdata);
+Index: linux-2.6.36/fs/sync.c
+===================================================================
+--- linux-2.6.36.orig/fs/sync.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/fs/sync.c	2019-02-14 15:34:27.616853084 +0800
+@@ -33,7 +33,7 @@
+ 	 * This should be safe, as we require bdi backing to actually
+ 	 * write out data in the first place
+ 	 */
+-	if (!sb->s_bdi || sb->s_bdi == &noop_backing_dev_info)
++	if (sb->s_bdi == &noop_backing_dev_info)
+ 		return 0;
+ 
+ 	if (sb->s_qcop && sb->s_qcop->quota_sync)
+@@ -79,7 +79,7 @@
+ 
+ static void sync_one_sb(struct super_block *sb, void *arg)
+ {
+-	if (!(sb->s_flags & MS_RDONLY) && sb->s_bdi)
++	if (!(sb->s_flags & MS_RDONLY))
+ 		__sync_filesystem(sb, *(int *)arg);
+ }
+ /*
+Index: linux-2.6.36/mm/backing-dev.c
+===================================================================
+--- linux-2.6.36.orig/mm/backing-dev.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/mm/backing-dev.c	2019-02-14 15:35:13.968084960 +0800
+@@ -604,7 +604,7 @@
+ 	spin_lock(&sb_lock);
+ 	list_for_each_entry(sb, &super_blocks, s_list) {
+ 		if (sb->s_bdi == bdi)
+-			sb->s_bdi = NULL;
++			sb->s_bdi = &default_backing_dev_info;
+ 	}
+ 	spin_unlock(&sb_lock);
+ }

@@ -1,0 +1,14 @@
+Index: linux-2.6.36/net/ipv6/route.c
+===================================================================
+--- linux-2.6.36.orig/net/ipv6/route.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/net/ipv6/route.c	2018-01-17 11:12:47.471161939 +0800
+@@ -1763,7 +1763,8 @@
+ 	write_lock_bh(&table->tb6_lock);
+ 	for (rt = table->tb6_root.leaf; rt; rt=rt->dst.rt6_next) {
+ 		if (dev == rt->rt6i_dev &&
+-		    ((rt->rt6i_flags & (RTF_ADDRCONF | RTF_DEFAULT)) == (RTF_ADDRCONF | RTF_DEFAULT)) &&
++			/* Zyxel workaround, rt6i_flags won't be match if default route is added from userspace */
++			//((rt->rt6i_flags & (RTF_ADDRCONF | RTF_DEFAULT)) == (RTF_ADDRCONF | RTF_DEFAULT)) &&
+ 		    ipv6_addr_equal(&rt->rt6i_gateway, addr))
+ 			break;
+ 	}

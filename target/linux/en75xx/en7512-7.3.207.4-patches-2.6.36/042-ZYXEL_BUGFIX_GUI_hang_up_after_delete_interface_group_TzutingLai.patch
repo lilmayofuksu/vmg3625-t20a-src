@@ -1,0 +1,14 @@
+Index: linux-2.6.36/net/core/dev.c
+===================================================================
+--- linux-2.6.36.orig/net/core/dev.c	2016-12-22 11:08:23.897411141 +0800
++++ linux-2.6.36/net/core/dev.c	2016-12-22 11:20:20.368357396 +0800
+@@ -6186,7 +6186,8 @@
+ 							|| dev->name[0]=='e'
+ 							|| dev->name[0]=='p'
+ 							|| dev->name[0]=='d' //for dslite
+-							|| dev->name[0]=='r'))
++							|| dev->name[0]=='r'
++							|| dev->name[0]=='b')) //for bridge
+ 			{
+ 				//for network interface, e.g. nas0,nas0_1,eth0,eth0.1,ppp0,ra0
+ 				atomic_set(&dev->refcnt, 0);

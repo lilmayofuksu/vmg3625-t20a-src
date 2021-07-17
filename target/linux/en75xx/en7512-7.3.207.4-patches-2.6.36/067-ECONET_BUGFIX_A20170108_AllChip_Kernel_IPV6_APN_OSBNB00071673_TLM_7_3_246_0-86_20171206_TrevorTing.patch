@@ -1,0 +1,18 @@
+Index: linux-2.6.36/include/linux/ipv6.h
+===================================================================
+--- linux-2.6.36.orig/include/linux/ipv6.h	2018-01-19 13:54:20.162591000 +0800
++++ linux-2.6.36/include/linux/ipv6.h	2018-01-19 13:58:31.801311351 +0800
+@@ -216,6 +216,13 @@
+ 	DEVCONF_MC_FORWARDING,
+ 	DEVCONF_DISABLE_IPV6,
+ 	DEVCONF_ACCEPT_DAD,
++/* add by ecnt */
++	DEVCONF_SLAAC_ADDR,
++	DEVCONF_CHILD_PREFIX_ORIGN,
++	DEVCONF_CHILD_PREFIX,
++	DEVCONF_PARENT_PD_PREFIX,
++	DEVCONF_SLAAC_PREFIX,
++/* add by ecnt */
+ 	DEVCONF_FORCE_TLLAO,
+ 	DEVCONF_MAX
+ };

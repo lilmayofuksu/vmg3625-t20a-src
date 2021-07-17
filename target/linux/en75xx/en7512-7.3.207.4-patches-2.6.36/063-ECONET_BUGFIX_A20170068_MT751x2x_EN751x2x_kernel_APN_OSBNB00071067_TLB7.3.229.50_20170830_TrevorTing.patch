@@ -1,0 +1,12 @@
+Index: linux-2.6.36/arch/mips/kernel/process.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/kernel/process.c	2010-10-21 04:30:22.000000000 +0800
++++ linux-2.6.36/arch/mips/kernel/process.c	2017-10-20 14:14:28.695045000 +0800
+@@ -142,7 +142,6 @@
+ 	childregs->regs[7] = 0;	/* Clear error flag */
+ 
+ 	childregs->regs[2] = 0;	/* Child gets zero as return value */
+-	regs->regs[2] = p->pid;
+ 
+ 	if (childregs->cp0_status & ST0_CU0) {
+ 		childregs->regs[28] = (unsigned long) ti;

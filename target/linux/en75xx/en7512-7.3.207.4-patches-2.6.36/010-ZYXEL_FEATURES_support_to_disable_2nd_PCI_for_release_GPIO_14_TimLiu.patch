@@ -1,0 +1,16 @@
+Index: linux-2.6.36/arch/mips/pci/pci-tc3162u.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/pci/pci-tc3162u.c	2015-08-25 19:57:34.073549375 -0700
++++ linux-2.6.36/arch/mips/pci/pci-tc3162u.c	2015-08-26 19:58:15.245067279 -0700
+@@ -2179,7 +2179,11 @@
+ 			if (!isFPGA){
+ 				//set GPIO share scheme reg for PERST output
+ 				tmp = regRead32(0xbfb00860);
++				#if defined(ZYXEL_DISABLE_SECOND_PCI)
++				regWrite32(0xbfb00860, (tmp | (1<<19)));
++				#else
+ 				regWrite32(0xbfb00860, (tmp | ((1<<19) | (1<<20))));
++				#endif
+ 			}
+ #endif
+ 			/*first reset to default*/

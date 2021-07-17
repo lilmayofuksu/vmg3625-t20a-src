@@ -1,0 +1,49 @@
+Index: linux-2.6.36/arch/mips/include/asm/tc3162/ledcetrl.h
+===================================================================
+--- linux-2.6.36.orig/arch/mips/include/asm/tc3162/ledcetrl.h	2017-02-06 09:12:36.050011371 +0800
++++ linux-2.6.36/arch/mips/include/asm/tc3162/ledcetrl.h	2017-02-06 09:13:59.549306028 +0800
+@@ -225,9 +225,44 @@
+ #define LED_ETHER_PORT4_ACT_STATUS	(LED_BASE + 75)
+ #endif
+ 
++#if defined(ZYXEL_CUSTOMIZE_LED_BEHAVIOR)
++/* VMGx312-T20A,VMG3625-T20A */
++	#define LED_PWR_GREEN_STATUS		(LED_BASE + 80)
++	#define LED_PWR_GREEN_ACT_STATUS	(LED_BASE + 81)
++	#define LED_PWR_RED_STATUS			(LED_BASE + 82)
++	#define LED_PWR_RED_ACT_STATUS		(LED_BASE + 83)
++	#define LED_INTERNET_RED_STATUS		(LED_BASE + 84)
++	#define LED_INTERNET_RED_ACT_STATUS	(LED_BASE + 85)
++
++	#define LED_VOIP1_GREEN_STATUS		(LED_BASE + 86)
++	#define LED_VOIP1_GREEN_ACT_STATUS	(LED_BASE + 87)
++	#define LED_VOIP1_AMBER_STATUS		(LED_BASE + 88)
++	#define LED_VOIP1_AMBER_ACT_STATUS	(LED_BASE + 89)
++	#define LED_VOIP2_GREEN_STATUS		(LED_BASE + 90)
++	#define LED_VOIP2_GREEN_ACT_STATUS	(LED_BASE + 91)
++	#define LED_VOIP2_AMBER_STATUS		(LED_BASE + 92)
++	#define LED_VOIP2_AMBER_ACT_STATUS	(LED_BASE + 93)
++
++	#define LED_VDSL_STATUS				(LED_BASE + 94)
++	#define LED_VDSL_ACT_STATUS			(LED_BASE + 95)
++	#define LED_VDSL_NOACT_STATUS		(LED_BASE + 96)
++	#define LED_VDSL_IDLE_STATUS		(LED_BASE + 97)
++	#define LED_VDSL_HANDSHAKE_STATUS	(LED_BASE + 98)
++	#define LED_VDSL_TRAINING_STATUS	(LED_BASE + 99)
++	#define LED_VDSL_SHOWTIME_STATUS	(LED_BASE + 100)
++#endif
++
++
+ #define LED_VOIP_REG_STATUS	(LED_BASE + 101)
+ #define LED_PHY_VCC_DISABLE		(LED_BASE + 102)
+ 
++#if defined(ZYXEL_CUSTOMIZE_LED_BEHAVIOR)
++/* VMG3625-T20A */
++	#define LED_WLAN_WPS_5G_STATUS			(LED_BASE + 103)
++	#define LED_WLAN_WPS_5G_ACT_STATUS		(LED_BASE + 104)
++	#define LED_WLAN_WPS_5G_NOACT_STATUS	(LED_BASE + 105)
++#endif
++
+ #define mtkled_read_reg_word(reg) 			regRead32(reg)
+ #define mtkled_write_reg_word(reg, wdata) 	regWrite32(reg, wdata)
+ /*__________________________________________________________________________

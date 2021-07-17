@@ -1,0 +1,130 @@
+Index: linux-2.6.36/arch/mips/ralink/prom.c
+===================================================================
+--- linux-2.6.36.orig/arch/mips/ralink/prom.c	2016-07-19 16:32:12.975154761 +0800
++++ linux-2.6.36/arch/mips/ralink/prom.c	2016-07-19 16:57:18.087876539 +0800
+@@ -106,7 +106,7 @@
+ void flash_init(void)
+ {
+ 
+-	if ((IS_NANDFLASH) && (isRT63165 || isRT63365 || isMT751020)) {
++	if ((IS_NANDFLASH) && (isRT63165 || isRT63365 || isMT751020 || isEN751221)) {
+ 		flash_base = 0x0;
+ 	} else {
+ #ifdef TCSUPPORT_ADDR_MAPPING
+Index: linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c
+===================================================================
+--- linux-2.6.36.orig/drivers/mtd/chips/spi_nand_flash.c	2016-07-19 16:32:14.047154769 +0800
++++ linux-2.6.36/drivers/mtd/chips/spi_nand_flash.c	2016-07-19 17:04:33.475345849 +0800
+@@ -255,6 +255,7 @@
+ struct nand_info flashInfo;
+ unsigned char _plane_select_bit=0;
+ 
++struct mtd_info 	*spi_nand_mtd;
+ 
+ /* TYPE DECLARATIONS ----------------------------------------------------------------- */
+ struct _SPI_NAND_FLASH_ID_T {
+@@ -2019,7 +2020,7 @@
+ 	SPI_NAND_FLASH_RTN_T			rtn_status = SPI_NAND_FLASH_RTN_NO_ERROR;
+ 	struct spi_nand_flash_oobfree 	*ptr_oob_entry_idx;	
+ 
+-	ptr_dev_info_t	= _SPI_NAND_GET_DEVICE_INFO_PTR;			
++	ptr_dev_info_t	= _SPI_NAND_GET_DEVICE_INFO_PTR;
+ 
+ 	/* 1. Load Page into cache of NAND Flash Chip */
+ 	if( spi_nand_load_page_into_cache(page_number) == SPI_NAND_FLASH_RTN_DETECTED_BAD_BLOCK )
+@@ -2277,7 +2278,7 @@
+ 
+ 
+ 	_SPI_NAND_DEBUG_PRINTF(SPI_NAND_FLASH_DEBUG_LEVEL_1, "[spi_nand_write_page_internal]: enter\n");
+-	
++
+ 	ptr_dev_info_t	= _SPI_NAND_GET_DEVICE_INFO_PTR;	
+ 	
+ 	_SPI_NAND_SEMAPHORE_LOCK();	
+@@ -3285,16 +3286,18 @@
+  */
+ unsigned char SPI_NAND_Flash_Read_Byte(unsigned long long addr)
+ {
+-	u32 	len = 1;
+-	u8 		buf[2];
+-	
+-	memset(buf,0x0,2);
+-	
+-	spi_nand_read_internal(addr, len, &buf[0], SPI_NAND_FLASH_READ_SPEED_MODE_SINGLE);
+-	
+-	_SPI_NAND_DEBUG_PRINTF(SPI_NAND_FLASH_DEBUG_LEVEL_1, "SPI_NAND_Flash_Read_Byte : buf=0x%x\n", buf[0]);
+-	
+-	return buf[0];
++	unsigned char ch;
++	size_t retlen;
++	int ret=0;
++
++	ret = spi_nand_mtd->read(spi_nand_mtd, (loff_t)addr, 1, &retlen, &ch);
++	if( ret != 0 )
++	{
++		_SPI_NAND_PRINTF("Error : SPI_NAND_Flash_Read_Byte , read 0x%llx error\n", addr);
++		return -1;
++	}
++
++	return ch;
+ }
+ 
+ /*------------------------------------------------------------------------------------
+@@ -3317,18 +3320,26 @@
+  */
+ unsigned long SPI_NAND_Flash_Read_DWord(unsigned long long addr)
+ {
++	unsigned char data[5];
++	unsigned long dword;
++	size_t retlen;
++	int ret = 0, i;
+ 
+-	u8		 buf2[4]={0};
+-	u32		 ret_val=0;
+-	
+-	_SPI_NAND_DEBUG_PRINTF(SPI_NAND_FLASH_DEBUG_LEVEL_1, "SPI_NAND_Flash_Read_DWord, addr= 0x%llx\n", addr);
++	ret = spi_nand_mtd->read( spi_nand_mtd, (loff_t)addr, 4, &retlen, data);
+ 
+-	spi_nand_read_internal(addr, 4, &buf2[0], SPI_NAND_FLASH_READ_SPEED_MODE_SINGLE);
+-	ret_val = (buf2[0] << 24) | (buf2[1] << 16) | (buf2[2] <<8) | buf2[3];
+-		
+-	_SPI_NAND_DEBUG_PRINTF(SPI_NAND_FLASH_DEBUG_LEVEL_1, "SPI_NAND_Flash_Read_DWord : ret_val=0x%x\n", ret_val);
+-	
+-	return ret_val;
++	if (ret != 0)
++	{
++		_SPI_NAND_PRINTF("Error : SPI_NAND_Flash_Read_DWord , read 0x%llx error\n", addr);
++		return -1;
++	}
++
++	dword = 0;
++	for (i=0; i<4; i++) {
++		dword += (unsigned long)data[i];
++		if (i<3)
++			dword <<= 8;
++	}
++	return dword;
+ }
+ 
+ /*------------------------------------------------------------------------------------
+@@ -4400,6 +4411,7 @@
+             return -ENOMEM;
+     }
+ 
++	spi_nand_mtd = mtd;
+     mtd->priv = chip;
+     mtd->name = "EN7512-SPI_NAND";
+     mtd->owner = THIS_MODULE;
+Index: linux-2.6.36/drivers/mtd/ralink/bmt.c
+===================================================================
+--- linux-2.6.36.orig/drivers/mtd/ralink/bmt.c	2016-07-19 16:32:14.123154769 +0800
++++ linux-2.6.36/drivers/mtd/ralink/bmt.c	2016-07-19 17:05:18.785294833 +0800
+@@ -49,7 +49,7 @@
+ 
+ #define __UBOOT_NAND__
+ #if	defined(TCSUPPORT_CPU_MT7510)||defined(TCSUPPORT_CPU_MT7520)||defined(TCSUPPORT_CPU_EN7512)||defined(TCSUPPORT_CPU_EN7521)
+-#if 1
++#if 0
+ #define MSG(args...) printk(args)
+ #else
+ #define MSG(args...) do{}while(0)

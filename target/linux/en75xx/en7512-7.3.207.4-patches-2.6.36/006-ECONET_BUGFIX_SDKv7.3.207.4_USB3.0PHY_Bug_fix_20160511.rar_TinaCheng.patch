@@ -1,0 +1,14 @@
+Index: linux-2.6.36/drivers/usb/host/mtk_xhci/xhci-hub.c
+===================================================================
+--- linux-2.6.36.orig/drivers/usb/host/mtk_xhci/xhci-hub.c	2016-07-19 16:32:14.475154771 +0800
++++ linux-2.6.36/drivers/usb/host/mtk_xhci/xhci-hub.c	2016-07-19 17:11:10.839115302 +0800
+@@ -805,6 +805,9 @@
+ 					wIndex, temp);
+ 			break;
+ 		case USB_PORT_FEAT_BH_PORT_RESET:
++			spin_unlock_irqrestore(&xhci->lock, flags);
++			msleep(200);
++			spin_lock_irqsave(&xhci->lock, flags);
+ 			temp |= PORT_WR;
+ 			xhci_writel(xhci, temp, port_array[wIndex]);
+ 
